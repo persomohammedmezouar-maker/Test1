@@ -1,3 +1,9 @@
+workflows:
+  android-only:
+    name: Build APK Android only
+    environment:
+      flutter: stable
+      
 scripts:
   # ... ton code existant jusqu'au network config ...
   # Debug avant build
