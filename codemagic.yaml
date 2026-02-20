@@ -1,0 +1,29 @@
+workflows:
+  android-release:
+    name: Nid Poule APK
+    environment:
+      flutter: 3.41.1
+
+    scripts:
+      - flutter clean
+      - flutter pub get
+
+      # Génère Android (puisqu'il n'existe pas)
+      - flutter create --platforms android .
+
+      # Injecter permissions GPS + internet dans le manifest généré
+      - sed -i 's|<manifest |<manifest xmlns:tools="http://schemas.android.com/tools" |' android/app/src/main/AndroidManifest.xml
+
+      - sed -i '/<manifest/a\
+    <uses-permission android:name="android.permission.INTERNET"/>\
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>\
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\
+    <uses-permission android:name="android.permission.CAMERA"/>' android/app/src/main/AndroidManifest.xml
+
+      # Build
+      - flutter build apk --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
