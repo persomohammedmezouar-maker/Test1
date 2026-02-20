@@ -11,8 +11,8 @@ workflows:
       # Génération de l'icône si elle existe
       - '[ -f assets/icon.png ] && flutter pub run flutter_launcher_icons:main || echo "no icon"'
 
-      # Création du projet Android si nécessaire
-      - flutter create --platforms android .
+      # Créer le projet Android si le dossier n'existe pas
+      - '[ ! -d android ] && flutter create --platforms android . || echo "android folder exists"'
       - mkdir -p android/app/src/main/res/xml
 
       # Création du network_security_config.xml
