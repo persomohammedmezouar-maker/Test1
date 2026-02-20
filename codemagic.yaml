@@ -1,31 +1,49 @@
 workflows:
-  android-release:
-    name: Nid Poule APK
+  android-full-featured:
+    name: APK Pro - Carte + GPS + Photos
     environment:
       flutter: 3.41.1
-
     scripts:
+      # Nettoyage et récupération des packages
       - flutter clean
       - flutter pub get
 
-      # Générer Android
+      # Génération de l'icône si elle existe
+      - '[ -f assets/icon.png ] && flutter pub run flutter_launcher_icons:main || echo "no icon"'
+
+      # Création du projet Android si nécessaire
       - flutter create --platforms android .
+      - mkdir -p android/app/src/main/res/xml
 
-      # Vérifier que le dossier existe
-      - ls -la
-
-      # Ajouter permissions GPS dans le manifest généré
+      # Création du network_security_config.xml
       - |
-        sed -i '/<manifest/a\
-        <uses-permission android:name="android.permission.INTERNET"/>\
-        <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\
-        <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\
-        <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>\
-        <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\
-        <uses-permission android:name="android.permission.CAMERA"/>' android/app/src/main/AndroidManifest.xml
+        cat <<EOF > android/app/src/main/res/xml/network_security_config.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <network-security-config>
+            <base-config cleartextTrafficPermitted="false">
+                <trust-anchors>
+                    <certificates src="system"/>
+                </trust-anchors>
+            </base-config>
+            <domain-config cleartextTrafficPermitted="true">
+                <domain includeSubdomains="true">tile.openstreetmap.org</domain>
+                <domain includeSubdomains="true">tile.openstreetmap.fr</domain>
+            </domain-config>
+        </network-security-config>
+        EOF
 
-      # Build APK
+      # Ajouter toutes les permissions dans AndroidManifest.xml
+      - sed -i '' 's|<uses-permission android:name="android.permission.INTERNET" />|<uses-permission android:name="android.permission.INTERNET" /><uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" /><uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /><uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /><uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /><uses-permission android:name="android.permission.READ_MEDIA_IMAGES" /><uses-permission android:name="android.permission.CAMERA" />|' android/app/src/main/AndroidManifest.xml
+
+      # Ajouter networkSecurityConfig dans <application>
+      - sed -i '' 's|<application |<application android:networkSecurityConfig="@xml/network_security_config" |' android/app/src/main/AndroidManifest.xml
+
+      # Build APK debug
+      - flutter build apk --debug
+
+      # Build APK release
       - flutter build apk --release
 
     artifacts:
+      - build/app/outputs/flutter-apk/app-debug.apk
       - build/app/outputs/flutter-apk/app-release.apk
