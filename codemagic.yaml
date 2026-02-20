@@ -5,28 +5,51 @@ workflows:
       flutter: stable
 
     scripts:
-      - script: |
-          echo "=== MARQUEUR 1 : avant flutter clean ==="
-          flutter clean
-          echo "=== MARQUEUR 2 : après flutter clean ==="
-          flutter pub get
-          echo "=== MARQUEUR 3 : après pub get ==="
+      # MARQUEUR 1 : avant flutter clean
+      - echo "=== MARQUEUR 1 : avant flutter clean ==="
+      - flutter clean
 
-          echo "=== MARQUEUR 4 : vérifier fichiers XML ==="
-          ls -la android/app/src/main/
-          ls -la android/app/src/main/res/xml/
-          ls -la android/app/src/main/res/values/
+      # MARQUEUR 2 : après flutter clean
+      - echo "=== MARQUEUR 2 : après flutter clean ==="
 
-          echo "=== MARQUEUR 5 : build APK release ==="
-          flutter build apk --release --target-platform android-arm,android-arm64,android-x64 | tee flutter_build.log
-          echo "=== MARQUEUR 6 : après flutter build apk ==="
+      # MARQUEUR 3 : pub get
+      - echo "=== MARQUEUR 3 : avant pub get ==="
+      - flutter pub get
+      - echo "=== MARQUEUR 3 : après pub get ==="
 
-          echo "=== MARQUEUR 7 : vérifier permissions GPS dans APK ==="
-          unzip -p build/app/outputs/flutter-apk/*.apk AndroidManifest.xml | strings | grep -i "ACCESS_FINE\|ACCESS_COARSE" || echo "❌ PAS DE GPS !"
+      # MARQUEUR 4 : vérifier fichiers XML
+      - echo "=== MARQUEUR 4 : vérifier fichiers XML ==="
+      - ls -la android/app/src/main/
+      - ls -la android/app/src/main/res/
+      - ls -la android/app/src/main/res/values/ || mkdir -p android/app/src/main/res/values
+      - |
+        cat <<EOF > android/app/src/main/res/values/styles.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+                <item name="android:windowBackground">@android:color/white</item>
+            </style>
+            <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+                <item name="android:windowBackground">?android:attr/colorBackground</item>
+            </style>
+        </resources>
+        EOF
+      - ls -la android/app/src/main/res/
 
-          echo "=== MARQUEUR 8 : lister les fichiers APK ==="
-          ls -la build/app/outputs/flutter-apk/
+      # MARQUEUR 5 : build APK release
+      - echo "=== MARQUEUR 5 : build APK release ==="
+      - flutter build apk --release --no-shrink
+
+      # MARQUEUR 6 : vérifier permissions dans APK
+      - echo "=== MARQUEUR 6 : vérifier permissions dans APK ==="
+      - unzip -p build/app/outputs/flutter-apk/app-release.apk AndroidManifest.xml | strings | grep -i "ACCESS_FINE\|ACCESS_COARSE" || echo "❌ PAS DE GPS !"
+
+      # MARQUEUR 7 : vérification existence APK
+      - echo "=== MARQUEUR 7 : vérifier existence APK ==="
+      - ls -la build/app/outputs/flutter-apk/
+
+      # MARQUEUR 8 : fin des scripts
+      - echo "=== MARQUEUR 8 : scripts terminés ==="
 
     artifacts:
-      - flutter_build.log
-      - build/app/outputs/flutter-apk/*.apk
+      - build/app/outputs/flutter-apk/app-release.apk
