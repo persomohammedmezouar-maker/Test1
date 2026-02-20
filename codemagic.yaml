@@ -1,35 +1,25 @@
-workflows:
-  android-only:
-    name: Build APK Android only
-    environment:
-      flutter: stable
-    scripts:
-      - flutter clean
-      - flutter pub get
-      # Créer Android si le dossier n'existe pas
-      - if [ ! -d android ]; then flutter create --platforms android .; fi
-      # Ajouter network security config
-      - mkdir -p android/app/src/main/res/xml
-      - |
-        cat <<EOF > android/app/src/main/res/xml/network_security_config.xml
-        <?xml version="1.0" encoding="utf-8"?>
-        <network-security-config>
-            <base-config cleartextTrafficPermitted="false">
-                <trust-anchors>
-                    <certificates src="system"/>
-                </trust-anchors>
-            </base-config>
-            <domain-config cleartextTrafficPermitted="true">
-                <domain includeSubdomains="true">tile.openstreetmap.org</domain>
-                <domain includeSubdomains="true">tile.openstreetmap.fr</domain>
-            </domain-config>
-        </network-security-config>
-        EOF
-      # Ajouter permissions dans AndroidManifest.xml
-      - sed -i '' 's|<uses-permission android:name="android.permission.INTERNET" />|<uses-permission android:name="android.permission.INTERNET" /><uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /><uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /><uses-permission android:name="android.permission.CAMERA" /><uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /><uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />|' android/app/src/main/AndroidManifest.xml
-      # Ajouter networkSecurityConfig dans <application>
-      - sed -i '' 's|<application |<application android:networkSecurityConfig="@xml/network_security_config" |' android/app/src/main/AndroidManifest.xml
-      # Build APK uniquement
-      - flutter build apk --release -t lib/main.dart
-    artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
+scripts:
+  # ... ton code existant jusqu'au network config ...
+  # Debug avant build
+  - echo "=== DEBUG MANIFEST ==="
+  - cat android/app/src/main/AndroidManifest.xml
+  - ls -la android/app/src/main/res/values/ || mkdir -p android/app/src/main/res/values
+  - |
+    cat << EOF > android/app/src/main/res/values/styles.xml
+    <?xml version="1.0" encoding="utf-8"?>
+    <resources>
+        <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+            <item name="android:windowBackground">@android:color/white</item>
+        </style>
+        <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+            <item name="android:windowBackground">?android:attr/colorBackground</item>
+        </style>
+    </resources>
+    EOF
+  # Fix applicationName
+  - sed -i '' 's|\${applicationName}|io.flutter.app.FlutterApplication|g' android/app/src/main/AndroidManifest.xml
+  # Build APK release EXPLICITE
+  - flutter build apk --release --no-shrink
+  # Debug APK
+  - echo "=== PERMISSIONS DANS APK FINALE ==="
+  - unzip -p build/app/outputs/flutter-apk/app-release.apk AndroidManifest.xml | strings | grep -i "ACCESS_FINE\|ACCESS_COARSE" || echo "❌ PAS DE GPS !"
