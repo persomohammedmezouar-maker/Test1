@@ -5,31 +5,27 @@ workflows:
       flutter: stable
 
     scripts:
-      # 1. Nettoyage et dépendances
-      - echo "=== MARQUEUR 1 : avant flutter clean ==="
-      - flutter clean
-      - echo "=== MARQUEUR 2 : après flutter clean ==="
-      - flutter pub get
-      - echo "=== MARQUEUR 3 : après pub get ==="
+      - script: |
+          echo "=== MARQUEUR 1 : avant flutter clean ==="
+          flutter clean
+          echo "=== MARQUEUR 2 : après flutter clean ==="
+          flutter pub get
+          echo "=== MARQUEUR 3 : après pub get ==="
 
-      # 2. DEBUG : vérifier que les fichiers XML existent
-      - echo "=== MARQUEUR 4 : vérification fichiers XML ==="
-      - ls -la android/app/src/main/
-      - ls -la android/app/src/main/res/xml/
-      - ls -la android/app/src/main/res/values/
+          echo "=== MARQUEUR 4 : vérifier fichiers XML ==="
+          ls -la android/app/src/main/
+          ls -la android/app/src/main/res/xml/
+          ls -la android/app/src/main/res/values/
 
-      # 3. BUILD APK release
-      - echo "=== MARQUEUR 5 : avant flutter build apk ==="
-      - flutter build apk --release --target-platform android-arm,android-arm64,android-x64 | tee flutter_build.log
-      - echo "=== MARQUEUR 6 : après flutter build apk ==="
+          echo "=== MARQUEUR 5 : build APK release ==="
+          flutter build apk --release --target-platform android-arm,android-arm64,android-x64 | tee flutter_build.log
+          echo "=== MARQUEUR 6 : après flutter build apk ==="
 
-      # 4. Vérification permissions GPS dans l'APK finale
-      - echo "=== MARQUEUR 7 : vérification GPS dans APK ==="
-      - unzip -p build/app/outputs/flutter-apk/*.apk AndroidManifest.xml | strings | grep -i "ACCESS_FINE\|ACCESS_COARSE" || echo "❌ PAS DE GPS !"
+          echo "=== MARQUEUR 7 : vérifier permissions GPS dans APK ==="
+          unzip -p build/app/outputs/flutter-apk/*.apk AndroidManifest.xml | strings | grep -i "ACCESS_FINE\|ACCESS_COARSE" || echo "❌ PAS DE GPS !"
 
-      # 5. DEBUG : lister les fichiers APK
-      - echo "=== MARQUEUR 8 : contenu build/app/outputs/flutter-apk/ ==="
-      - ls -la build/app/outputs/flutter-apk/
+          echo "=== MARQUEUR 8 : lister les fichiers APK ==="
+          ls -la build/app/outputs/flutter-apk/
 
     artifacts:
       - flutter_build.log
