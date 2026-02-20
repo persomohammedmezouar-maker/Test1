@@ -3,29 +3,34 @@ workflows:
     name: Build APK Android only
     environment:
       flutter: stable
-      
-scripts:
-  # ... ton code existant jusqu'au network config ...
-  # Debug avant build
-  - echo "=== DEBUG MANIFEST ==="
-  - cat android/app/src/main/AndroidManifest.xml
-  - ls -la android/app/src/main/res/values/ || mkdir -p android/app/src/main/res/values
-  - |
-    cat << EOF > android/app/src/main/res/values/styles.xml
-    <?xml version="1.0" encoding="utf-8"?>
-    <resources>
-        <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
-            <item name="android:windowBackground">@android:color/white</item>
-        </style>
-        <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-            <item name="android:windowBackground">?android:attr/colorBackground</item>
-        </style>
-    </resources>
-    EOF
-  # Fix applicationName
-  - sed -i '' 's|\${applicationName}|io.flutter.app.FlutterApplication|g' android/app/src/main/AndroidManifest.xml
-  # Build APK release EXPLICITE
-  - flutter build apk --release --no-shrink
-  # Debug APK
-  - echo "=== PERMISSIONS DANS APK FINALE ==="
-  - unzip -p build/app/outputs/flutter-apk/app-release.apk AndroidManifest.xml | strings | grep -i "ACCESS_FINE\|ACCESS_COARSE" || echo "❌ PAS DE GPS !"
+
+    scripts:
+      # 1. Nettoyage et dépendances
+      - echo "=== MARQUEUR 1 : avant flutter clean ==="
+      - flutter clean
+      - echo "=== MARQUEUR 2 : après flutter clean ==="
+      - flutter pub get
+      - echo "=== MARQUEUR 3 : après pub get ==="
+
+      # 2. DEBUG : vérifier que les fichiers XML existent
+      - echo "=== MARQUEUR 4 : vérification fichiers XML ==="
+      - ls -la android/app/src/main/
+      - ls -la android/app/src/main/res/xml/
+      - ls -la android/app/src/main/res/values/
+
+      # 3. BUILD APK release
+      - echo "=== MARQUEUR 5 : avant flutter build apk ==="
+      - flutter build apk --release --target-platform android-arm,android-arm64,android-x64 | tee flutter_build.log
+      - echo "=== MARQUEUR 6 : après flutter build apk ==="
+
+      # 4. Vérification permissions GPS dans l'APK finale
+      - echo "=== MARQUEUR 7 : vérification GPS dans APK ==="
+      - unzip -p build/app/outputs/flutter-apk/*.apk AndroidManifest.xml | strings | grep -i "ACCESS_FINE\|ACCESS_COARSE" || echo "❌ PAS DE GPS !"
+
+      # 5. DEBUG : lister les fichiers APK
+      - echo "=== MARQUEUR 8 : contenu build/app/outputs/flutter-apk/ ==="
+      - ls -la build/app/outputs/flutter-apk/
+
+    artifacts:
+      - flutter_build.log
+      - build/app/outputs/flutter-apk/*.apk
