@@ -14,13 +14,10 @@ import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
   await FirebaseFirestore.instance.enablePersistence();
-
   runApp(const NidPouleApp());
 }
 
@@ -81,19 +78,6 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     _mapController.move(userLatLng, 15);
   }
 
-  Future<int> _reserveNextNumber() async {
-    final counterRef = _firestore.collection('meta').doc('counter');
-
-    return _firestore.runTransaction<int>((tx) async {
-      final snap = await tx.get(counterRef);
-      final current = (snap.data()?['nidCounter'] as int?) ?? 0;
-      final next = current + 1;
-
-      tx.set(counterRef, {'nidCounter': next}, SetOptions(merge: true));
-      return next;
-    });
-  }
-
   double? _distanceFromUser(LatLng pos) {
     if (_userLocation == null) return null;
     return const Distance().as(LengthUnit.Kilometer, _userLocation!, pos);
@@ -113,10 +97,6 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
         child: CachedNetworkImage(
           imageUrl: url,
           fit: BoxFit.contain,
-          placeholder: (_, __) =>
-              const Center(child: CircularProgressIndicator()),
-          errorWidget: (_, __, ___) =>
-              const Center(child: Icon(Icons.error)),
         ),
       ),
     );
@@ -158,53 +138,29 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       maxZoom: 19,
                     ),
-
-                    // ✅ CLUSTER COMPATIBLE 1.4.0
                     MarkerClusterLayerWidget(
                       options: MarkerClusterLayerOptions(
                         maxClusterRadius: 60,
                         size: const Size(50, 50),
                         anchor: AnchorPos.align(AnchorAlign.center),
-                        fitBoundsOptions: const FitBoundsOptions(
-                          padding: EdgeInsets.all(50),
-                        ),
-
                         markers: docs.map<Marker>((doc) {
                           final data =
                               doc.data() as Map<String, dynamic>;
                           final gp = data['pos'] as GeoPoint;
                           final pos =
                               LatLng(gp.latitude, gp.longitude);
-                          final isSelected =
-                              _selectedId == doc.id;
 
                           return Marker(
                             point: pos,
-                            width: 60,
-                            height: 60,
-                            child: GestureDetector(
-                              onTap: () =>
-                                  _onNidSelected(pos, doc.id),
-                              child: AnimatedContainer(
-                                duration:
-                                    const Duration(milliseconds: 300),
-                                width: isSelected ? 56 : 44,
-                                height: isSelected ? 56 : 44,
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? Colors.green
-                                      : Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.location_on,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            );
-                          });
+                            width: 50,
+                            height: 50,
+                            child: const Icon(
+                              Icons.location_on,
+                              color: Colors.red,
+                              size: 40,
+                            ),
+                          );
                         }).toList(),
-
                         builder: (context, clusterMarkers) {
                           return Container(
                             alignment: Alignment.center,
@@ -226,8 +182,6 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                   ],
                 ),
               ),
-
-              // LISTE
               Expanded(
                 flex: 4,
                 child: ListView.builder(
@@ -236,30 +190,10 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                     final doc = docs[index];
                     final data =
                         doc.data() as Map<String, dynamic>;
-                    final gp = data['pos'] as GeoPoint;
-                    final pos =
-                        LatLng(gp.latitude, gp.longitude);
-                    final distance =
-                        _distanceFromUser(pos);
 
                     return ListTile(
-                      leading: data['photoUrl'] != null
-                          ? CachedNetworkImage(
-                              imageUrl: data['photoUrl'],
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                            )
-                          : const Icon(Icons.location_on),
                       title: Text('Nid #${data['num']}'),
-                      subtitle: distance != null
-                          ? Text(
-                              '${distance.toStringAsFixed(2)} km')
-                          : null,
-                      onTap: () {
-                        _onNidSelected(pos, doc.id);
-                        _showFullImage(data['photoUrl']);
-                      },
+                      onTap: () {},
                     );
                   },
                 ),
