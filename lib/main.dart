@@ -201,8 +201,8 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                                   color: Colors.white,
                                 ),
                               ),
-                            ),
-                          );
+                            );
+                          });
                         }).toList(),
 
                         builder: (context, clusterMarkers) {
