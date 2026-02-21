@@ -9,6 +9,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'firebase_options.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -277,41 +279,47 @@ class _AddNidDialogState extends State<AddNidDialog> {
   bool get _canSubmit => !_loading && _bytes != null && _controller.text.trim().isNotEmpty;
 
   Future<void> _pickImage() async {
-    final picked = await showModalBottomSheet<XFile?>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo),
-              title: const Text('Galerie'),
-              onTap: () async {
-                final file = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024);
-                Navigator.pop(context, file);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Camera'),
-              onTap: () async {
-                final file = await _picker.pickImage(source: ImageSource.camera, maxWidth: 1024);
-                Navigator.pop(context, file);
-              },
-            ),
-          ],
-        ),
+  // 🔹 Demande des permissions
+  final status = await Permission.photos.request();
+  final cameraStatus = await Permission.camera.request();
+  if (!status.isGranted || !cameraStatus.isGranted) return; // stop si pas accordé
+
+  // Maintenant on ouvre le menu pour choisir la photo
+  final picked = await showModalBottomSheet<XFile?>(
+    context: context,
+    builder: (_) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.photo),
+            title: const Text('Galerie'),
+            onTap: () async {
+              final file = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024);
+              Navigator.pop(context, file);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.camera_alt),
+            title: const Text('Camera'),
+            onTap: () async {
+              final file = await _picker.pickImage(source: ImageSource.camera, maxWidth: 1024);
+              Navigator.pop(context, file);
+            },
+          ),
+        ],
       ),
-    );
+    ),
+  );
 
-    if (picked != null) {
-      final bytes = await picked.readAsBytes();
-      setState(() => _bytes = bytes);
-    }
+  if (picked != null) {
+    final bytes = await picked.readAsBytes();
+    setState(() => _bytes = bytes);
   }
-
+}
   Future<void> _submit() async {
-    if (!_canSubmit) return;
+    if (!
+    _canSubmit) return;
     setState(() => _loading = true);
 
     final fileName = 'nids/${DateTime.now().millisecondsSinceEpoch}.jpg';
