@@ -11,5 +11,6 @@
         <domain includeSubdomains="true">a.tile.openstreetmap.org</domain>
         <domain includeSubdomains="true">b.tile.openstreetmap.org</domain>
         <domain includeSubdomains="true">c.tile.openstreetmap.org</domain>
+        <domain includeSubdomains="true">tile.thunderforest.com</domain> <!-- ajouté -->
     </domain-config>
 </network-security-config>
