@@ -8,14 +8,17 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
-import 'firebase_options.dart';
+import 'package:cached_network_image/cached_network_image.dart';  // ✅ Nouveau
 import 'package:permission_handler/permission_handler.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  // ✅ Offline persistence
+  await FirebaseFirestore.instance.enablePersistence();  // [web:16][web:19]
   runApp(const NidPouleApp());
 }
 
@@ -67,7 +70,8 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     if (permission == LocationPermission.deniedForever) return;
 
     final pos = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+      desiredAccuracy: LocationAccuracy.medium,  // ✅ Batterie optimisée
+      timeLimit: const Duration(seconds: 10),
     );
 
     setState(() {
@@ -103,8 +107,15 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     showDialog(
       context: context,
       builder: (_) => Dialog(
-        child: InteractiveViewer(
-          child: Image.network(url, fit: BoxFit.contain),
+        child: CachedNetworkImage(  // ✅ Amélioré
+          imageUrl: url,
+          fit: BoxFit.contain,
+          placeholder: (context, url) => const Center(
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          errorWidget: (context, url, error) => const Center(
+            child: Icon(Icons.error, size: 50, color: Colors.red),
+          ),
         ),
       ),
     );
@@ -118,158 +129,212 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
         centerTitle: true,
         elevation: 2,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore
-            .collection('nids')
-            .orderBy('date', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          final docs = snapshot.data!.docs;
+      body: Stack(  // ✅ Stack pour FAB
+        children: [
+          StreamBuilder<QuerySnapshot>(
+            stream: _firestore
+                .collection('nids')
+                .orderBy('date', descending: true)
+                .limit(100)  // ✅ Pagination simple
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              final docs = snapshot.data!.docs;
 
-          return Row(
-            children: [
-              Expanded(
-                flex: 6,
-                child: FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: const LatLng(50.8503, 4.3517),
-                    initialZoom: 12,
-                    onLongPress: (tapPosition, point) async {
-                      final num = await _reserveNextNumber();
-                      if (!mounted) return;
+              return Row(
+                children: [
+                  Expanded(
+                    flex: 6,
+                    child: FlutterMap(
+                      mapController: _mapController,
+                      options: MapOptions(
+                        initialCenter: const LatLng(50.8503, 4.3517),
+                        initialZoom: 12,
+                        onLongPress: (tapPosition, point) async {
+                          final num = await _reserveNextNumber();
+                          if (!mounted) return;
 
-                      showDialog(
-                        context: context,
-                        builder: (_) => AddNidDialog(
-                          pos: point,
-                          autoNum: num,
-                          onSuccess: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('✅ Nid ajouté avec succès')),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d123fd3281734f0f977e15eb84dba100',
-                      maxZoom: 19,
-                    ),
-                    MarkerClusterLayerWidget(
-                      options: MarkerClusterLayerOptions(
-                        maxClusterRadius: 50,
-                        size: const Size(50, 50),
-                        markers: docs.map<Marker>((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final gp = data['pos'] as GeoPoint;
-                          final pos = LatLng(gp.latitude, gp.longitude);
-                          final isSelected = _selectedId == doc.id;
-
-                          return Marker(
-                            point: pos,
-                            width: 60,
-                            height: 60,
-                            child: GestureDetector(
-                              onTap: () => _onNidSelected(pos, doc.id),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                width: isSelected ? 56 : 44,
-                                height: isSelected ? 56 : 44,
-                                decoration: BoxDecoration(
-                                  color: isSelected ? Colors.green : Colors.red,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.4),
-                                      blurRadius: 10,
-                                    )
-                                  ],
-                                ),
-                                child: const Icon(Icons.location_on, color: Colors.white),
-                              ),
+                          showDialog(
+                            context: context,
+                            builder: (_) => AddNidDialog(
+                              pos: point,
+                              autoNum: num,
+                              onSuccess: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('✅ Nid ajouté avec succès')),
+                                );
+                              },
                             ),
                           );
-                        }).toList(),
-                        // ✅ Remplacement de childBuilder par builder
-                        builder: (context, markers) => Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.7),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            '${markers.length}',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                flex: 4,
-                child: ListView.builder(
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final doc = docs[index];
-                    final data = doc.data() as Map<String, dynamic>;
-                    final gp = data['pos'] as GeoPoint;
-                    final pos = LatLng(gp.latitude, gp.longitude);
-                    final distance = _distanceFromUser(pos);
-                    final isSelected = _selectedId == doc.id;
-
-                    return Dismissible(
-                      key: Key(doc.id),
-                      direction: DismissDirection.endToStart,
-                      onDismissed: (_) async {
-                        await _firestore.collection('nids').doc(doc.id).delete();
-                        if (mounted) setState(() => _selectedId = null);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('🗑 Nid supprimé')),
-                        );
-                      },
-                      background: Container(
-                        color: Colors.red,
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: const Icon(Icons.delete, color: Colors.white),
-                      ),
-                      child: ListTile(
-                        tileColor: isSelected ? Colors.green.withOpacity(0.15) : null,
-                        title: Text('Nid #${data['num']}'),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(data['nid'] ?? ''),
-                            if (distance != null)
-                              Text('${distance.toStringAsFixed(2)} km',
-                                  style: const TextStyle(
-                                      fontSize: 12, color: Colors.grey)),
-                          ],
-                        ),
-                        onTap: () {
-                          _onNidSelected(pos, doc.id);
-                          _showFullImage(data['photoUrl']);
                         },
                       ),
-                    );
-                  },
-                ),
-              ),
-            ],
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d123fd3281734f0f977e15eb84dba100',
+                          maxZoom: 19,
+                        ),
+                        MarkerClusterLayerWidget(
+                          options: MarkerClusterLayerOptions(
+                            maxClusterRadius: 60,  // ✅ Optimisé
+                            size: const Size(50, 50),
+                            markers: docs.map<Marker>((doc) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              final gp = data['pos'] as GeoPoint;
+                              final pos = LatLng(gp.latitude, gp.longitude);
+                              final isSelected = _selectedId == doc.id;
+
+                              return Marker(
+                                point: pos,
+                                width: 60,
+                                height: 60,
+                                child: GestureDetector(
+                                  onTap: () => _onNidSelected(pos, doc.id),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 300),
+                                    width: isSelected ? 56 : 44,
+                                    height: isSelected ? 56 : 44,
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? Colors.green : Colors.red,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.4),
+                                          blurRadius: 10,
+                                        )
+                                      ],
+                                    ),
+                                    child: const Icon(Icons.location_on, color: Colors.white),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                            builder: (context, markers) => Container(
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.7),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '${markers.length}',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: ListView.builder(
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final doc = docs[index];
+                        final data = doc.data() as Map<String, dynamic>;
+                        final gp = data['pos'] as GeoPoint;
+                        final pos = LatLng(gp.latitude, gp.longitude);
+                        final distance = _distanceFromUser(pos);
+                        final isSelected = _selectedId == doc.id;
+
+                        return Dismissible(
+                          key: Key(doc.id),
+                          direction: DismissDirection.endToStart,
+                          onDismissed: (_) async {
+                            await _firestore.collection('nids').doc(doc.id).delete();
+                            if (mounted) setState(() => _selectedId = null);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('🗑 Nid supprimé')),
+                            );
+                          },
+                          background: Container(
+                            color: Colors.red,
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: const Icon(Icons.delete, color: Colors.white),
+                          ),
+                          child: ListTile(
+                            tileColor: isSelected ? Colors.green.withOpacity(0.15) : null,
+                            leading: data['photoUrl'] != null
+                                ? ClipRRect(  // ✅ CachedNetworkImage
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: CachedNetworkImage(
+                                      imageUrl: data['photoUrl'],
+                                      width: 50,
+                                      height: 50,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) => Container(
+                                        width: 50,
+                                        height: 50,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[300],
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Center(
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      ),
+                                      errorWidget: (context, url, error) =>
+                                          const Icon(Icons.error, color: Colors.red),
+                                    ),
+                                  )
+                                : const Icon(Icons.location_on, color: Colors.grey),
+                            title: Text('Nid #${data['num']}'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(data['nid'] ?? ''),
+                                if (distance != null)
+                                  Text('${distance.toStringAsFixed(2)} km',
+                                      style: const TextStyle(
+                                          fontSize: 12, color: Colors.grey)),
+                              ],
+                            ),
+                            onTap: () {
+                              _onNidSelected(pos, doc.id);
+                              _showFullImage(data['photoUrl']);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(  // ✅ Bouton Ajouter
+        onPressed: () async {
+          final num = await _reserveNextNumber();
+          final center = _mapController.center ?? 
+                         _userLocation ?? 
+                         const LatLng(50.8503, 4.3517);
+
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (_) => AddNidDialog(
+              pos: center,
+              autoNum: num,
+              onSuccess: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('✅ Nid prêt à publier !')),
+                );
+              },
+            ),
           );
         },
+        icon: const Icon(Icons.add_location_alt),
+        label: const Text('Nouveau Nid'),
+        backgroundColor: Colors.green,
       ),
     );
   }
 }
 
+// ✅ Dialog inchangé
 class AddNidDialog extends StatefulWidget {
   final LatLng pos;
   final int autoNum;
