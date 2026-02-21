@@ -9,27 +9,36 @@ workflows:
       - name: "Marqueur 1 - avant flutter clean"
         script: |
           echo "=== MARQUEUR 1 : avant flutter clean ==="
+          git fetch origin main
+          git reset --hard origin/main
+          git clean -fd
+          echo "=== Code à jour ==="
+
       - name: "Marqueur 2 - flutter clean + purge cache"
-  script: |
-    flutter clean
-    rm -rf ~/.pub-cache
-    echo "=== Marqueur 2 : nettoyage terminé ==="
+        script: |
+          flutter clean
+          rm -rf ~/.pub-cache
+          echo "=== MARQUEUR 2 : nettoyage terminé ==="
 
       - name: "Marqueur 3 - pub get"
         script: |
           flutter pub get
           echo "=== MARQUEUR 3 : après pub get ==="
+
       - name: "Marqueur 4 - vérifier fichiers XML"
         script: |
           echo "=== MARQUEUR 4 : vérifier fichiers XML ==="
           ls -la android/app/src/main/
           ls -la android/app/src/main/res/
+
       - name: "Marqueur 5 - build APK release"
         script: |
           echo "=== MARQUEUR 5 : build APK release ==="
           flutter build apk --release
+
       - name: "Marqueur 6 - build terminé"
         script: |
           echo "=== MARQUEUR 6 : build terminé ==="
+
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
