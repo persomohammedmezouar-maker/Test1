@@ -11,7 +11,6 @@ import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'firebase_options.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -47,7 +46,6 @@ class NidDashboardScreen extends StatefulWidget {
 class _NidDashboardScreenState extends State<NidDashboardScreen> {
   final _mapController = MapController();
   final _firestore = FirebaseFirestore.instance;
-  final _picker = ImagePicker();
 
   String? _selectedId;
   LatLng? _userLocation;
@@ -121,37 +119,13 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
         elevation: 2,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore.collection('nids').orderBy('date', descending: true).snapshots(),
+        stream: _firestore
+            .collection('nids')
+            .orderBy('date', descending: true)
+            .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           final docs = snapshot.data!.docs;
-
-          final markers = docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            final gp = data['pos'] as GeoPoint;
-            final pos = LatLng(gp.latitude, gp.longitude);
-            final isSelected = _selectedId == doc.id;
-
-            return Marker(
-              point: pos,
-              width: 60,
-              height: 60,
-              builder: (context) => GestureDetector(
-                onTap: () => _onNidSelected(pos, doc.id),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: isSelected ? 56 : 44,
-                  height: isSelected ? 56 : 44,
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.green : Colors.red,
-                    shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 10)],
-                  ),
-                  child: const Icon(Icons.location_on, color: Colors.white),
-                ),
-              ),
-            );
-          }).toList();
 
           return Row(
             children: [
@@ -182,21 +156,55 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d123fd3281734f0f977e15eb84dba100',
+                      urlTemplate:
+                          'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d123fd3281734f0f977e15eb84dba100',
                       maxZoom: 19,
                     ),
                     MarkerClusterLayerWidget(
                       options: MarkerClusterLayerOptions(
                         maxClusterRadius: 50,
                         size: const Size(50, 50),
-                        markers: markers,
+                        markers: docs.map<Marker>((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final gp = data['pos'] as GeoPoint;
+                          final pos = LatLng(gp.latitude, gp.longitude);
+                          final isSelected = _selectedId == doc.id;
+
+                          return Marker(
+                            point: pos,
+                            width: 60,
+                            height: 60,
+                            child: GestureDetector(
+                              onTap: () => _onNidSelected(pos, doc.id),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                width: isSelected ? 56 : 44,
+                                height: isSelected ? 56 : 44,
+                                decoration: BoxDecoration(
+                                  color: isSelected ? Colors.green : Colors.red,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.4),
+                                      blurRadius: 10,
+                                    )
+                                  ],
+                                ),
+                                child: const Icon(Icons.location_on, color: Colors.white),
+                              ),
+                            ),
+                          );
+                        }).toList(),
                         builder: (context, markers) => Container(
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.7),
                             shape: BoxShape.circle,
                           ),
-                          child: Text('${markers.length}', style: const TextStyle(color: Colors.white)),
+                          child: Text(
+                            '${markers.length}',
+                            style: const TextStyle(color: Colors.white),
+                          ),
                         ),
                       ),
                     ),
@@ -238,7 +246,10 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(data['nid'] ?? ''),
-                            if (distance != null) Text('${distance.toStringAsFixed(2)} km', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            if (distance != null)
+                              Text('${distance.toStringAsFixed(2)} km',
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.grey)),
                           ],
                         ),
                         onTap: () {
@@ -273,53 +284,52 @@ class _AddNidDialogState extends State<AddNidDialog> {
   final _controller = TextEditingController();
   Uint8List? _bytes;
   bool _loading = false;
-
   final ImagePicker _picker = ImagePicker();
 
   bool get _canSubmit => !_loading && _bytes != null && _controller.text.trim().isNotEmpty;
 
   Future<void> _pickImage() async {
-  // 🔹 Demande des permissions
-  final status = await Permission.photos.request();
-  final cameraStatus = await Permission.camera.request();
-  if (!status.isGranted || !cameraStatus.isGranted) return; // stop si pas accordé
+    // 🔹 Demande des permissions
+    final status = await Permission.photos.request();
+    final cameraStatus = await Permission.camera.request();
+    if (!status.isGranted || !cameraStatus.isGranted) return;
 
-  // Maintenant on ouvre le menu pour choisir la photo
-  final picked = await showModalBottomSheet<XFile?>(
-    context: context,
-    builder: (_) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.photo),
-            title: const Text('Galerie'),
-            onTap: () async {
-              final file = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024);
-              Navigator.pop(context, file);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.camera_alt),
-            title: const Text('Camera'),
-            onTap: () async {
-              final file = await _picker.pickImage(source: ImageSource.camera, maxWidth: 1024);
-              Navigator.pop(context, file);
-            },
-          ),
-        ],
+    // Menu galerie / caméra
+    final picked = await showModalBottomSheet<XFile?>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo),
+              title: const Text('Galerie'),
+              onTap: () async {
+                final file = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024);
+                Navigator.pop(context, file);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Camera'),
+              onTap: () async {
+                final file = await _picker.pickImage(source: ImageSource.camera, maxWidth: 1024);
+                Navigator.pop(context, file);
+              },
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
 
-  if (picked != null) {
-    final bytes = await picked.readAsBytes();
-    setState(() => _bytes = bytes);
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() => _bytes = bytes);
+    }
   }
-}
+
   Future<void> _submit() async {
-    if (!
-    _canSubmit) return;
+    if (!_canSubmit) return;
     setState(() => _loading = true);
 
     final fileName = 'nids/${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -365,8 +375,13 @@ class _AddNidDialogState extends State<AddNidDialog> {
                 border: Border.all(color: Colors.grey.shade400),
               ),
               child: _bytes != null
-                  ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.memory(_bytes!, fit: BoxFit.cover))
-                  : const Center(child: Icon(Icons.add_a_photo, size: 48, color: Colors.grey)),
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(_bytes!, fit: BoxFit.cover),
+                    )
+                  : const Center(
+                      child: Icon(Icons.add_a_photo, size: 48, color: Colors.grey),
+                    ),
             ),
           ),
         ],
