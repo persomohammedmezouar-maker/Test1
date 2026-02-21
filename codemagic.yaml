@@ -9,10 +9,12 @@ workflows:
       - name: "Marqueur 1 - avant flutter clean"
         script: |
           echo "=== MARQUEUR 1 : avant flutter clean ==="
-      - name: "Marqueur 2 - flutter clean"
-        script: |
-          flutter clean
-          echo "=== MARQUEUR 2 : flutter clean terminé ==="
+      - name: "Marqueur 2 - flutter clean + purge cache"
+  script: |
+    flutter clean
+    rm -rf ~/.pub-cache
+    echo "=== Marqueur 2 : nettoyage terminé ==="
+
       - name: "Marqueur 3 - pub get"
         script: |
           flutter pub get
