@@ -77,10 +77,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
 
     final userLatLng = LatLng(pos.latitude, pos.longitude);
 
-    setState(() {
-      _userLocation = userLatLng;
-    });
-
+    setState(() => _userLocation = userLatLng);
     _mapController.move(userLatLng, 15);
   }
 
@@ -99,8 +96,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
 
   double? _distanceFromUser(LatLng pos) {
     if (_userLocation == null) return null;
-    return const Distance()
-        .as(LengthUnit.Kilometer, _userLocation!, pos);
+    return const Distance().as(LengthUnit.Kilometer, _userLocation!, pos);
   }
 
   void _onNidSelected(LatLng pos, String id) {
@@ -124,10 +120,6 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
         ),
       ),
     );
-  }
-
-  LatLng _getCurrentMapCenter() {
-    return _mapController.camera.center;
   }
 
   @override
@@ -163,14 +155,20 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                   children: [
                     TileLayer(
                       urlTemplate:
-                          'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d123fd3281734f0f977e15eb84dba100',
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       maxZoom: 19,
-                      userAgentPackageName: 'com.example.nidpoule',
                     ),
+
+                    // ✅ CLUSTER COMPATIBLE 1.4.0
                     MarkerClusterLayerWidget(
                       options: MarkerClusterLayerOptions(
                         maxClusterRadius: 60,
                         size: const Size(50, 50),
+                        anchor: AnchorPos.align(AnchorAlign.center),
+                        fitBoundsOptions: const FitBoundsOptions(
+                          padding: EdgeInsets.all(50),
+                        ),
+
                         markers: docs.map<Marker>((doc) {
                           final data =
                               doc.data() as Map<String, dynamic>;
@@ -206,11 +204,30 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                             ),
                           );
                         }).toList(),
+
+                        builder: (context, clusterMarkers) {
+                          return Container(
+                            alignment: Alignment.center,
+                            decoration: const BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              clusterMarkers.length.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
                 ),
               ),
+
+              // LISTE
               Expanded(
                 flex: 4,
                 child: ListView.builder(
@@ -251,154 +268,6 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final num = await _reserveNextNumber();
-
-          final center =
-              _userLocation ?? _mapController.camera.center;
-
-          if (!mounted) return;
-
-          showDialog(
-            context: context,
-            builder: (_) => AddNidDialog(
-              pos: center,
-              autoNum: num,
-              onSuccess: () {},
-            ),
-          );
-        },
-        icon: const Icon(Icons.add_location_alt),
-        label: const Text('Nouveau Nid'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-}
-
-class AddNidDialog extends StatefulWidget {
-  final LatLng pos;
-  final int autoNum;
-  final VoidCallback onSuccess;
-
-  const AddNidDialog({
-    super.key,
-    required this.pos,
-    required this.autoNum,
-    required this.onSuccess,
-  });
-
-  @override
-  State<AddNidDialog> createState() => _AddNidDialogState();
-}
-
-class _AddNidDialogState extends State<AddNidDialog> {
-  final _controller = TextEditingController();
-  final ImagePicker _picker = ImagePicker();
-
-  Uint8List? _bytes;
-  bool _loading = false;
-
-  bool get _canSubmit =>
-      !_loading &&
-      _bytes != null &&
-      _controller.text.trim().isNotEmpty;
-
-  Future<void> _pickImage() async {
-    final photoStatus = await Permission.photos.request();
-    final cameraStatus = await Permission.camera.request();
-    if (!photoStatus.isGranted || !cameraStatus.isGranted) return;
-
-    final file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1024,
-    );
-
-    if (file != null) {
-      final bytes = await file.readAsBytes();
-      setState(() => _bytes = bytes);
-    }
-  }
-
-  Future<void> _submit() async {
-    if (!_canSubmit) return;
-
-    setState(() => _loading = true);
-
-    final fileName =
-        'nids/${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-    final ref =
-        FirebaseStorage.instance.ref().child(fileName);
-
-    await ref.putData(_bytes!);
-    final photoUrl = await ref.getDownloadURL();
-
-    await FirebaseFirestore.instance.collection('nids').add({
-      'num': widget.autoNum,
-      'nid': _controller.text.trim(),
-      'photoUrl': photoUrl,
-      'pos': GeoPoint(
-          widget.pos.latitude, widget.pos.longitude),
-      'date': FieldValue.serverTimestamp(),
-    });
-
-    if (!mounted) return;
-
-    widget.onSuccess();
-    Navigator.pop(context);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Nid #${widget.autoNum}'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _controller,
-            maxLines: 3,
-            onChanged: (_) => setState(() {}),
-            decoration:
-                const InputDecoration(labelText: 'Description'),
-          ),
-          const SizedBox(height: 12),
-          GestureDetector(
-            onTap: _pickImage,
-            child: Container(
-              height: 120,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: _bytes != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.memory(
-                        _bytes!,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : const Center(
-                      child: Icon(Icons.add_a_photo),
-                    ),
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        ElevatedButton(
-          onPressed: _canSubmit ? _submit : null,
-          child: Text(_loading ? 'Envoi...' : 'Publier'),
-        ),
-      ],
     );
   }
 }
