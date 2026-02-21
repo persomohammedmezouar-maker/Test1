@@ -1,3 +1,4 @@
+cat > lib/main.dart << 'EOF'
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -142,7 +143,6 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                       options: MarkerClusterLayerOptions(
                         maxClusterRadius: 60,
                         size: const Size(50, 50),
-                        anchor: AnchorPos.align(AnchorAlign.center),
                         markers: docs.map<Marker>((doc) {
                           final data =
                               doc.data() as Map<String, dynamic>;
