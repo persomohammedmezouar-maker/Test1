@@ -195,7 +195,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                             ),
                           );
                         }).toList(),
-                        builder: (context, markers) => Container(
+                        childBuilder: (context, markers) => Container(
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.7),
@@ -289,12 +289,10 @@ class _AddNidDialogState extends State<AddNidDialog> {
   bool get _canSubmit => !_loading && _bytes != null && _controller.text.trim().isNotEmpty;
 
   Future<void> _pickImage() async {
-    // 🔹 Demande des permissions
     final status = await Permission.photos.request();
     final cameraStatus = await Permission.camera.request();
     if (!status.isGranted || !cameraStatus.isGranted) return;
 
-    // Menu galerie / caméra
     final picked = await showModalBottomSheet<XFile?>(
       context: context,
       builder: (_) => SafeArea(
