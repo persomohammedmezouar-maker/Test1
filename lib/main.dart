@@ -58,13 +58,6 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     _loadUserLogo();
   }
 
-  Future<void> _loadUserLogo() async {
-    // Ici tu peux mettre un logo en local assets ou réseau
-    // Exemple : assets/logo.png
-    final bytes = await DefaultAssetBundle.of(context).load('assets/logo.png');
-    setState(() => _userLogoBytes = bytes.buffer.asUint8List());
-  }
-
   Future<void> _initLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
@@ -84,6 +77,12 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     });
 
     _mapController.move(_userLocation!, 15);
+  }
+
+  Future<void> _loadUserLogo() async {
+    // Exemple simple : utiliser une image locale ou téléchargée en bytes
+    // Ici on laisse null pour l'instant (Icon par défaut)
+    _userLogoBytes = null;
   }
 
   Future<int> _reserveNextNumber() async {
@@ -119,7 +118,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     );
   }
 
-  Future<void> _addNidAtCurrentLocation() async {
+  void _addNidButtonPressed() async {
     if (_userLocation == null) return;
     final num = await _reserveNextNumber();
     if (!mounted) return;
@@ -145,11 +144,13 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
         title: const Text('🐓 Nids de Poule'),
         centerTitle: true,
         elevation: 2,
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addNidAtCurrentLocation,
-        icon: const Icon(Icons.add_location),
-        label: const Text('Ajouter Nid'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_road),
+            tooltip: 'Ajouter Nid',
+            onPressed: _addNidButtonPressed,
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore
@@ -176,16 +177,15 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                           'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d123fd3281734f0f977e15eb84dba100',
                       maxZoom: 19,
                     ),
-                    if (_userLocation != null && _userLogoBytes != null)
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: _userLocation!,
-                            width: 48,
-                            height: 48,
-                            builder: (_) => Image.memory(_userLogoBytes!),
-                          ),
-                        ],
+                    if (_userLocation != null)
+                      Marker(
+                        point: _userLocation!,
+                        width: 48,
+                        height: 48,
+                        builder: (ctx) => _userLogoBytes != null
+                            ? Image.memory(_userLogoBytes!)
+                            : const Icon(Icons.person_pin_circle,
+                                size: 48, color: Colors.blue),
                       ),
                     MarkerClusterLayerWidget(
                       options: MarkerClusterLayerOptions(
@@ -201,7 +201,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                             point: pos,
                             width: 60,
                             height: 60,
-                            child: GestureDetector(
+                            builder: (ctx) => GestureDetector(
                               onTap: () => _onNidSelected(pos, doc.id),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 300),
@@ -217,7 +217,8 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                                     )
                                   ],
                                 ),
-                                child: const Icon(Icons.location_on, color: Colors.white),
+                                child: const Icon(Icons.location_on,
+                                    color: Colors.white),
                               ),
                             ),
                           );
@@ -313,7 +314,7 @@ class _AddNidDialogState extends State<AddNidDialog> {
   bool _loading = false;
   final ImagePicker _picker = ImagePicker();
 
-  bool get _canSubmit => !_loading && _controller.text.trim().isNotEmpty;
+  bool get _canSubmit => !_loading && _bytes != null && _controller.text.trim().isNotEmpty;
 
   Future<void> _pickImage() async {
     final status = await Permission.photos.request();
@@ -357,13 +358,10 @@ class _AddNidDialogState extends State<AddNidDialog> {
     if (!_canSubmit) return;
     setState(() => _loading = true);
 
-    String? photoUrl;
-    if (_bytes != null) {
-      final fileName = 'nids/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = FirebaseStorage.instance.ref().child(fileName);
-      await ref.putData(_bytes!);
-      photoUrl = await ref.getDownloadURL();
-    }
+    final fileName = 'nids/${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final ref = FirebaseStorage.instance.ref().child(fileName);
+    await ref.putData(_bytes!);
+    final photoUrl = await ref.getDownloadURL();
 
     await FirebaseFirestore.instance.collection('nids').add({
       'num': widget.autoNum,
