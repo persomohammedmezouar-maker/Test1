@@ -1,14 +1,13 @@
 import 'dart:typed_data';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -46,6 +45,7 @@ class NidDashboardScreen extends StatefulWidget {
 class _NidDashboardScreenState extends State<NidDashboardScreen> {
   final _mapController = MapController();
   final _firestore = FirebaseFirestore.instance;
+  final _picker = ImagePicker();
 
   String? _selectedId;
   LatLng? _userLocation;
@@ -73,6 +73,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     setState(() {
       _userLocation = LatLng(pos.latitude, pos.longitude);
     });
+
     _mapController.move(_userLocation!, 15);
   }
 
@@ -118,12 +119,37 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
         elevation: 2,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore.collection('nids').orderBy('date', descending: true).limit(100).snapshots(),
+        stream: _firestore.collection('nids').orderBy('date', descending: true).snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) return const Center(child: Text('Erreur de connexion'));
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-
           final docs = snapshot.data!.docs;
+
+          final markers = docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final gp = data['pos'] as GeoPoint;
+            final pos = LatLng(gp.latitude, gp.longitude);
+            final isSelected = _selectedId == doc.id;
+
+            return Marker(
+              point: pos,
+              width: 60,
+              height: 60,
+              builder: (context) => GestureDetector(
+                onTap: () => _onNidSelected(pos, doc.id),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: isSelected ? 56 : 44,
+                  height: isSelected ? 56 : 44,
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.green : Colors.red,
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 10)],
+                  ),
+                  child: const Icon(Icons.location_on, color: Colors.white),
+                ),
+              ),
+            );
+          }).toList();
 
           return Row(
             children: [
@@ -154,99 +180,72 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate:
-                          'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d123fd3281734f0f977e15eb84dba100',
+                      urlTemplate: 'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d123fd3281734f0f977e15eb84dba100',
                       maxZoom: 19,
                     ),
-                    MarkerLayer(
-                      markers: docs.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final gp = data['pos'] as GeoPoint;
-                        final pos = LatLng(gp.latitude, gp.longitude);
-                        final isSelected = _selectedId == doc.id;
-
-                        return Marker(
-                          point: pos,
-                          width: 60,
-                          height: 60,
-                          child: GestureDetector(
-                            onTap: () => _onNidSelected(pos, doc.id),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              width: isSelected ? 56 : 44,
-                              height: isSelected ? 56 : 44,
-                              decoration: BoxDecoration(
-                                color: isSelected ? Colors.green : Colors.red,
-                                shape: BoxShape.circle,
-                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 10)],
-                              ),
-                              child: const Icon(Icons.location_on, color: Colors.white),
-                            ),
+                    MarkerClusterLayerWidget(
+                      options: MarkerClusterLayerOptions(
+                        maxClusterRadius: 50,
+                        size: const Size(50, 50),
+                        markers: markers,
+                        builder: (context, markers) => Container(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.7),
+                            shape: BoxShape.circle,
                           ),
-                        );
-                      }).toList(),
+                          child: Text('${markers.length}', style: const TextStyle(color: Colors.white)),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
               Expanded(
                 flex: 4,
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      color: Colors.red.withOpacity(0.1),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.warning, color: Colors.red),
-                          const SizedBox(width: 8),
-                          Text('Total : ${docs.length}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: docs.length,
-                        itemBuilder: (context, index) {
-                          final doc = docs[index];
-                          final data = doc.data() as Map<String, dynamic>;
-                          final gp = data['pos'] as GeoPoint;
-                          final pos = LatLng(gp.latitude, gp.longitude);
-                          final distance = _distanceFromUser(pos);
-                          final isSelected = _selectedId == doc.id;
+                child: ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final data = doc.data() as Map<String, dynamic>;
+                    final gp = data['pos'] as GeoPoint;
+                    final pos = LatLng(gp.latitude, gp.longitude);
+                    final distance = _distanceFromUser(pos);
+                    final isSelected = _selectedId == doc.id;
 
-                          return GestureDetector(
-                            onTap: () {
-                              _onNidSelected(pos, doc.id);
-                              _showFullImage(data['photoUrl']);
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: isSelected ? Colors.green.withOpacity(0.15) : Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Nid #${data['num']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                  const SizedBox(height: 4),
-                                  Text(data['nid'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-                                  if (distance != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Text('${distance.toStringAsFixed(2)} km',
-                                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                    )
-                                ],
-                              ),
-                            ),
-                          );
+                    return Dismissible(
+                      key: Key(doc.id),
+                      direction: DismissDirection.endToStart,
+                      onDismissed: (_) async {
+                        await _firestore.collection('nids').doc(doc.id).delete();
+                        if (mounted) setState(() => _selectedId = null);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('🗑 Nid supprimé')),
+                        );
+                      },
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      child: ListTile(
+                        tileColor: isSelected ? Colors.green.withOpacity(0.15) : null,
+                        title: Text('Nid #${data['num']}'),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(data['nid'] ?? ''),
+                            if (distance != null) Text('${distance.toStringAsFixed(2)} km', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                        onTap: () {
+                          _onNidSelected(pos, doc.id);
+                          _showFullImage(data['photoUrl']);
                         },
                       ),
-                    )
-                  ],
+                    );
+                  },
                 ),
               ),
             ],
@@ -262,12 +261,7 @@ class AddNidDialog extends StatefulWidget {
   final int autoNum;
   final VoidCallback onSuccess;
 
-  const AddNidDialog({
-    super.key,
-    required this.pos,
-    required this.autoNum,
-    required this.onSuccess,
-  });
+  const AddNidDialog({super.key, required this.pos, required this.autoNum, required this.onSuccess});
 
   @override
   State<AddNidDialog> createState() => _AddNidDialogState();
@@ -278,38 +272,41 @@ class _AddNidDialogState extends State<AddNidDialog> {
   Uint8List? _bytes;
   bool _loading = false;
 
+  final ImagePicker _picker = ImagePicker();
+
   bool get _canSubmit => !_loading && _bytes != null && _controller.text.trim().isNotEmpty;
 
   Future<void> _pickImage() async {
-    // 1️⃣ Demande runtime permission
-    if (Platform.isAndroid) {
-      final status = await Permission.photos.request();
-      if (!status.isGranted) {
-        final storageStatus = await Permission.storage.request();
-        if (!storageStatus.isGranted) {
-          if (mounted) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text('❌ Permission images refusée')));
-          }
-          return;
-        }
-      }
-    }
+    final picked = await showModalBottomSheet<XFile?>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo),
+              title: const Text('Galerie'),
+              onTap: () async {
+                final file = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024);
+                Navigator.pop(context, file);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Camera'),
+              onTap: () async {
+                final file = await _picker.pickImage(source: ImageSource.camera, maxWidth: 1024);
+                Navigator.pop(context, file);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
 
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-      );
-
-      if (result != null && result.files.single.bytes != null) {
-        setState(() => _bytes = result.files.single.bytes);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur photo: $e')));
-      }
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() => _bytes = bytes);
     }
   }
 
@@ -317,29 +314,22 @@ class _AddNidDialogState extends State<AddNidDialog> {
     if (!_canSubmit) return;
     setState(() => _loading = true);
 
-    try {
-      final fileName = 'nids/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = FirebaseStorage.instance.ref().child(fileName);
-      await ref.putData(_bytes!);
-      final photoUrl = await ref.getDownloadURL();
+    final fileName = 'nids/${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final ref = FirebaseStorage.instance.ref().child(fileName);
+    await ref.putData(_bytes!);
+    final photoUrl = await ref.getDownloadURL();
 
-      await FirebaseFirestore.instance.collection('nids').add({
-        'num': widget.autoNum,
-        'nid': _controller.text.trim(),
-        'photoUrl': photoUrl,
-        'pos': GeoPoint(widget.pos.latitude, widget.pos.longitude),
-        'date': FieldValue.serverTimestamp(),
-      });
+    await FirebaseFirestore.instance.collection('nids').add({
+      'num': widget.autoNum,
+      'nid': _controller.text.trim(),
+      'photoUrl': photoUrl,
+      'pos': GeoPoint(widget.pos.latitude, widget.pos.longitude),
+      'date': FieldValue.serverTimestamp(),
+    });
 
-      if (!mounted) return;
-      widget.onSuccess();
-      Navigator.pop(context);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur upload: $e')));
-      }
-      setState(() => _loading = false);
-    }
+    if (!mounted) return;
+    widget.onSuccess();
+    Navigator.pop(context);
   }
 
   @override
@@ -356,19 +346,26 @@ class _AddNidDialogState extends State<AddNidDialog> {
             decoration: const InputDecoration(labelText: 'Description'),
           ),
           const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: _pickImage,
-            icon: const Icon(Icons.photo),
-            label: const Text('Ajouter photo'),
+          GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              height: 120,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade400),
+              ),
+              child: _bytes != null
+                  ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.memory(_bytes!, fit: BoxFit.cover))
+                  : const Center(child: Icon(Icons.add_a_photo, size: 48, color: Colors.grey)),
+            ),
           ),
         ],
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
-        ElevatedButton(
-          onPressed: _canSubmit ? _submit : null,
-          child: Text(_loading ? 'Envoi...' : 'Publier'),
-        )
+        ElevatedButton(onPressed: _canSubmit ? _submit : null, child: Text(_loading ? 'Envoi...' : 'Publier')),
       ],
     );
   }
