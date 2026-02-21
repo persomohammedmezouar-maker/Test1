@@ -110,24 +110,6 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     );
   }
 
-  void _openAddNidDialog() async {
-    final num = await _reserveNextNumber();
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      builder: (_) => AddNidDialog(
-        pos: _userLocation ?? const LatLng(50.8503, 4.3517),
-        autoNum: num,
-        onSuccess: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('✅ Nid ajouté avec succès')),
-          );
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -136,12 +118,11 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
         centerTitle: true,
         elevation: 2,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openAddNidDialog,
-        child: const Icon(Icons.add),
-      ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore.collection('nids').orderBy('date', descending: true).snapshots(),
+        stream: _firestore
+            .collection('nids')
+            .orderBy('date', descending: true)
+            .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           final docs = snapshot.data!.docs;
@@ -153,8 +134,25 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                 child: FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
-                    initialCenter: _userLocation ?? const LatLng(50.8503, 4.3517),
+                    initialCenter: const LatLng(50.8503, 4.3517),
                     initialZoom: 12,
+                    onLongPress: (tapPosition, point) async {
+                      final num = await _reserveNextNumber();
+                      if (!mounted) return;
+
+                      showDialog(
+                        context: context,
+                        builder: (_) => AddNidDialog(
+                          pos: point,
+                          autoNum: num,
+                          onSuccess: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('✅ Nid ajouté avec succès')),
+                            );
+                          },
+                        ),
+                      );
+                    },
                   ),
                   children: [
                     TileLayer(
@@ -197,7 +195,8 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                             ),
                           );
                         }).toList(),
-                        childBuilder: (context, markers) => Container(
+                        // ✅ Remplacement de childBuilder par builder
+                        builder: (context, markers) => Container(
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.7),
@@ -271,7 +270,6 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
   }
 }
 
-/// AddNidDialog complet avec upload asynchrone
 class AddNidDialog extends StatefulWidget {
   final LatLng pos;
   final int autoNum;
@@ -289,7 +287,7 @@ class _AddNidDialogState extends State<AddNidDialog> {
   bool _loading = false;
   final ImagePicker _picker = ImagePicker();
 
-  bool get _canSubmit => !_loading && _controller.text.trim().isNotEmpty;
+  bool get _canSubmit => !_loading && _bytes != null && _controller.text.trim().isNotEmpty;
 
   Future<void> _pickImage() async {
     final status = await Permission.photos.request();
@@ -333,13 +331,10 @@ class _AddNidDialogState extends State<AddNidDialog> {
     if (!_canSubmit) return;
     setState(() => _loading = true);
 
-    String? photoUrl;
-    if (_bytes != null) {
-      final fileName = 'nids/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = FirebaseStorage.instance.ref().child(fileName);
-      await ref.putData(_bytes!);
-      photoUrl = await ref.getDownloadURL();
-    }
+    final fileName = 'nids/${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final ref = FirebaseStorage.instance.ref().child(fileName);
+    await ref.putData(_bytes!);
+    final photoUrl = await ref.getDownloadURL();
 
     await FirebaseFirestore.instance.collection('nids').add({
       'num': widget.autoNum,
