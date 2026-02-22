@@ -4,12 +4,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'firebase_options.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -80,8 +77,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
   }
 
   Future<void> _loadUserLogo() async {
-    // Ici tu peux charger un logo depuis Firebase ou garder le default
-    _userLogoBytes = null;
+    _userLogoBytes = null; // Placeholder
   }
 
   Future<int> _reserveNextNumber() async {
@@ -177,14 +173,17 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                       maxZoom: 19,
                     ),
                     if (_userLocation != null)
-                      Marker(
-                        point: _userLocation!,
-                        width: 48,
-                        height: 48,
-                        child: _userLogoBytes != null
-                            ? Image.memory(_userLogoBytes!)
-                            : const Icon(Icons.person_pin_circle,
-                                size: 48, color: Colors.blue),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: _userLocation!,
+                            width: 48,
+                            height: 48,
+                            builder: (_) => _userLogoBytes != null
+                                ? Image.memory(_userLogoBytes!)
+                                : const Icon(Icons.person_pin_circle, size: 48, color: Colors.blue),
+                          ),
+                        ],
                       ),
                     MarkerClusterLayerWidget(
                       options: MarkerClusterLayerOptions(
@@ -200,7 +199,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                             point: pos,
                             width: 60,
                             height: 60,
-                            child: GestureDetector(
+                            builder: (_) => GestureDetector(
                               onTap: () => _onNidSelected(pos, doc.id),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 300),
@@ -216,8 +215,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                                     )
                                   ],
                                 ),
-                                child: const Icon(Icons.location_on,
-                                    color: Colors.white),
+                                child: const Icon(Icons.location_on, color: Colors.white),
                               ),
                             ),
                           );
@@ -275,13 +273,11 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                             Text(data['nid'] ?? ''),
                             if (distance != null)
                               Text('${distance.toStringAsFixed(2)} km',
-                                  style: const TextStyle(
-                                      fontSize: 12, color: Colors.grey)),
+                                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
                           ],
                         ),
                         onTap: () {
                           _onNidSelected(pos, doc.id);
-                          _showFullImage(data['photoUrl']);
                         },
                       ),
                     );
@@ -296,4 +292,28 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
   }
 }
 
-// AddNidDialog identique à la version précédente pour rester compatible avec tes libs
+// Petit AddNidDialog de test
+class AddNidDialog extends StatelessWidget {
+  final LatLng pos;
+  final int autoNum;
+  final VoidCallback onSuccess;
+
+  const AddNidDialog({super.key, required this.pos, required this.autoNum, required this.onSuccess});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Ajouter Nid'),
+      content: Text('Position: ${pos.latitude}, ${pos.longitude}\nNuméro: $autoNum'),
+      actions: [
+        TextButton(
+          onPressed: () {
+            onSuccess();
+            Navigator.of(context).pop();
+          },
+          child: const Text('OK'),
+        ),
+      ],
+    );
+  }
+}
