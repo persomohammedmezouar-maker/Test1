@@ -4,6 +4,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 
 void main() {
   runApp(NidPouleApp());
@@ -51,7 +53,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
       point: pos,
       width: 80,
       height: 80,
-      builder: (ctx, marker) => GestureDetector(
+      builder: (ctx) => GestureDetector(
         onTap: () => _showMarkerInfo(pos),
         child: _userLogoBytes != null
             ? Image.memory(_userLogoBytes!)
@@ -65,27 +67,24 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
 
   void _showMarkerInfo(LatLng pos) {
     showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Info Nid'),
-        content: Text('Position: ${pos.latitude}, ${pos.longitude}'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Fermer'),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _markers.removeWhere((m) => m.point == pos);
-              });
-              Navigator.pop(context);
-            },
-            child: Text('Supprimer', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
+        context: context,
+        builder: (_) => AlertDialog(
+              title: Text('Info Nid'),
+              content: Text('Position: ${pos.latitude}, ${pos.longitude}'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('Fermer')),
+                TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _markers.removeWhere((m) => m.point == pos);
+                      });
+                      Navigator.pop(context);
+                    },
+                    child: Text('Supprimer', style: TextStyle(color: Colors.red))),
+              ],
+            ));
   }
 
   LatLng _getMapCenter() {
@@ -98,7 +97,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
         );
       }
     } catch (e) {}
-    return LatLng(48.8566, 2.3522);
+    return LatLng(48.8566, 2.3522); // fallback
   }
 
   @override
@@ -111,9 +110,11 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
       body: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          initialCenter: LatLng(48.8566, 2.3522),
+          center: LatLng(48.8566, 2.3522),
           zoom: 13.0,
-          onTap: (tapPos, latlng) => _addMarker(latlng),
+          onTap: (tapPos, latlng) {
+            if (latlng != null) _addMarker(latlng);
+          },
         ),
         children: [
           TileLayer(
@@ -121,7 +122,22 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
             subdomains: ['a', 'b', 'c'],
             userAgentPackageName: 'com.example.nid_poule_app',
           ),
-          MarkerLayer(markers: _markers),
+          MarkerClusterLayerWidget(
+            options: MarkerClusterLayerOptions(
+              maxClusterRadius: 120,
+              size: Size(50, 50),
+              markers: _markers,
+              builder: (context, markers) {
+                return Container(
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                      color: Colors.orange, shape: BoxShape.circle),
+                  child: Text('${markers.length}',
+                      style: TextStyle(color: Colors.white)),
+                );
+              },
+            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
