@@ -36,6 +36,42 @@ class NidPouleApp extends StatelessWidget {
   }
 }
 
+// ==================================
+// AddNidDialog
+// ==================================
+class AddNidDialog extends StatelessWidget {
+  final LatLng pos;
+  final int autoNum;
+  final VoidCallback onSuccess;
+
+  const AddNidDialog({
+    super.key,
+    required this.pos,
+    required this.autoNum,
+    required this.onSuccess,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Ajouter Nid #$autoNum'),
+      content: const Text('Boîte de dialogue exemple'),
+      actions: [
+        TextButton(
+          onPressed: () {
+            onSuccess();
+            Navigator.of(context).pop();
+          },
+          child: const Text('OK'),
+        ),
+      ],
+    );
+  }
+}
+
+// ==================================
+// NidDashboardScreen
+// ==================================
 class NidDashboardScreen extends StatefulWidget {
   const NidDashboardScreen({super.key});
 
@@ -80,7 +116,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
   }
 
   Future<void> _loadUserLogo() async {
-    _userLogoBytes = null; // Pour l'instant on laisse l'icône par défaut
+    _userLogoBytes = null;
   }
 
   Future<int> _reserveNextNumber() async {
@@ -175,21 +211,19 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                           'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d123fd3281734f0f977e15eb84dba100',
                       maxZoom: 19,
                     ),
-                    if (_userLocation != null)
-                      Marker(
-                        point: _userLocation!,
-                        width: 48,
-                        height: 48,
-                        child: _userLogoBytes != null
-                            ? Image.memory(_userLogoBytes!)
-                            : const Icon(Icons.person_pin_circle,
-                                size: 48, color: Colors.blue),
-                      ),
-                    MarkerClusterLayerWidget(
-                      options: MarkerClusterLayerOptions(
-                        maxClusterRadius: 50,
-                        size: const Size(50, 50),
-                        markers: docs.map<Marker>((doc) {
+                    MarkerLayer(
+                      markers: [
+                        if (_userLocation != null)
+                          Marker(
+                            point: _userLocation!,
+                            width: 48,
+                            height: 48,
+                            child: _userLogoBytes != null
+                                ? Image.memory(_userLogoBytes!)
+                                : const Icon(Icons.person_pin_circle,
+                                    size: 48, color: Colors.blue),
+                          ),
+                        ...docs.map((doc) {
                           final data = doc.data() as Map<String, dynamic>;
                           final gp = data['pos'] as GeoPoint;
                           final pos = LatLng(gp.latitude, gp.longitude);
@@ -221,18 +255,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                             ),
                           );
                         }).toList(),
-                        builder: (context, markers) => Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.7),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            '${markers.length}',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
@@ -294,5 +317,3 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     );
   }
 }
-
-// ⚠️ N'oublie pas de recréer AddNidDialog selon ta version précédente
