@@ -38,7 +38,8 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 70);
     if (image != null) {
       final bytes = await image.readAsBytes();
       setState(() {
@@ -52,7 +53,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
       point: pos,
       width: 80,
       height: 80,
-      builder: (ctx) => GestureDetector(
+      builder: (_) => GestureDetector(
         onTap: () => _showMarkerInfo(pos),
         child: _userLogoBytes != null
             ? Image.memory(_userLogoBytes!)
@@ -72,33 +73,23 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
         content: Text('Position: ${pos.latitude}, ${pos.longitude}'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Fermer')
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: Text('Fermer')),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _markers.removeWhere((m) => m.point == pos);
-              });
-              Navigator.pop(context);
-            },
-            child: Text('Supprimer', style: TextStyle(color: Colors.red))
-          )
+              onPressed: () {
+                setState(() {
+                  _markers.removeWhere((m) => m.point == pos);
+                });
+                Navigator.pop(context);
+              },
+              child: Text('Supprimer', style: TextStyle(color: Colors.red))),
         ],
-      )
+      ),
     );
   }
 
   LatLng _getMapCenter() {
-    try {
-      final bounds = _mapController.bounds;
-      if (bounds != null) {
-        return LatLng(
-          (bounds.north + bounds.south) / 2,
-          (bounds.east + bounds.west) / 2,
-        );
-      }
-    } catch (e) {}
+    // Comme _mapController.bounds n'existe plus, on retourne le centre actuel du zoom initial
     return LatLng(48.8566, 2.3522);
   }
 
@@ -144,7 +135,8 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
                   ),
                   child: Text(
                     '${markers.length}',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 );
               },
