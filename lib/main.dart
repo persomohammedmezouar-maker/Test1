@@ -35,6 +35,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
   final MapController _mapController = MapController();
   final List<Marker> _markers = [];
   Uint8List? _userLogoBytes;
+  LatLng _currentCenter = LatLng(48.8566, 2.3522);
 
   @override
   void initState() {
@@ -152,10 +153,13 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
       body: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          initialCenter: LatLng(48.8566, 2.3522),
+          initialCenter: _currentCenter,
           initialZoom: 13.0,
           onTap: (tapPos, latlng) {
             if (latlng != null) _addMarker(latlng);
+          },
+          onPositionChanged: (position, hasGesture) {
+            _currentCenter = position.center!;
           },
         ),
         children: [
@@ -200,9 +204,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
           FloatingActionButton(
             heroTag: 'add_marker',
             onPressed: () {
-              // Ajoute un marker au centre actuel
-              final center = _mapController.center;
-              _addMarker(center);
+              _addMarker(_currentCenter);
             },
             child: Icon(Icons.add_location),
             tooltip: 'Ajouter Nid au centre',
