@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 
 void main() {
@@ -53,7 +51,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
       point: pos,
       width: 80,
       height: 80,
-      builder: (_) => GestureDetector(
+      child: GestureDetector(
         onTap: () => _showMarkerInfo(pos),
         child: _userLogoBytes != null
             ? Image.memory(_userLogoBytes!)
@@ -89,7 +87,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
   }
 
   LatLng _getMapCenter() {
-    // Comme _mapController.bounds n'existe plus, on retourne le centre actuel du zoom initial
+    // Comme _mapController.bounds n'existe plus, on retourne le centre initial
     return LatLng(48.8566, 2.3522);
   }
 
@@ -109,8 +107,8 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
       body: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          center: LatLng(48.8566, 2.3522),
-          zoom: 13.0,
+          initialCenter: LatLng(48.8566, 2.3522),
+          initialZoom: 13.0,
           onTap: (tapPos, latlng) {
             if (latlng != null) _addMarker(latlng);
           },
