@@ -4,6 +4,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() {
   runApp(NidPouleApp());
@@ -34,18 +36,53 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
   final List<Marker> _markers = [];
   Uint8List? _userLogoBytes;
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery, imageQuality: 70);
-    if (image != null) {
-      final bytes = await image.readAsBytes();
-      setState(() {
-        _userLogoBytes = bytes;
-      });
+  @override
+  void initState() {
+    super.initState();
+    _loadNidsFromFirestore();
+  }
+
+  // ----- Géolocalisation -----
+  Future<Position?> _getCurrentLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return null;
+    }
+    return await Geolocator.getCurrentPosition();
+  }
+
+  Future<void> _centerOnUser() async {
+    final pos = await _getCurrentLocation();
+    if (pos != null) {
+      final latLng = LatLng(pos.latitude, pos.longitude);
+      _mapController.move(latLng, 15.0);
+      _addMarker(latLng); // ajoute un marker sur la position
     }
   }
 
+  // ----- Chargement des nids depuis Firestore -----
+  Future<void> _loadNidsFromFirestore() async {
+    final snapshot = await FirebaseFirestore.instance.collection('nids').get();
+    final List<Marker> loadedMarkers = snapshot.docs.map((doc) {
+      final data = doc.data();
+      return Marker(
+        point: LatLng(data['lat'], data['lng']),
+        width: 80,
+        height: 80,
+        child: Icon(Icons.warning, color: Colors.red),
+      );
+    }).toList();
+
+    setState(() {
+      _markers.addAll(loadedMarkers);
+    });
+  }
+
+  // ----- Ajouter un marker -----
   void _addMarker(LatLng pos) {
     final marker = Marker(
       point: pos,
@@ -63,6 +100,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     });
   }
 
+  // ----- Info popup -----
   void _showMarkerInfo(LatLng pos) {
     showDialog(
       context: context,
@@ -71,8 +109,7 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
         content: Text('Position: ${pos.latitude}, ${pos.longitude}'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Fermer')),
+              onPressed: () => Navigator.pop(context), child: Text('Fermer')),
           TextButton(
               onPressed: () {
                 setState(() {
@@ -86,9 +123,17 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
     );
   }
 
-  LatLng _getMapCenter() {
-    // Comme _mapController.bounds n'existe plus, on retourne le centre initial
-    return LatLng(48.8566, 2.3522);
+  // ----- Choix image utilisateur -----
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 70);
+    if (image != null) {
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _userLogoBytes = bytes;
+      });
+    }
   }
 
   @override
@@ -142,13 +187,27 @@ class _NidDashboardScreenState extends State<NidDashboardScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          final center = _getMapCenter();
-          _addMarker(center);
-        },
-        child: const Icon(Icons.add_location),
-        tooltip: 'Ajouter Nid au centre',
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: 'user_location',
+            onPressed: _centerOnUser,
+            child: Icon(Icons.my_location),
+            tooltip: 'Ma position',
+          ),
+          SizedBox(height: 10),
+          FloatingActionButton(
+            heroTag: 'add_marker',
+            onPressed: () {
+              // Ajoute un marker au centre actuel
+              final center = _mapController.center;
+              _addMarker(center);
+            },
+            child: Icon(Icons.add_location),
+            tooltip: 'Ajouter Nid au centre',
+          ),
+        ],
       ),
     );
   }
